@@ -20,18 +20,13 @@ menu BYTE " *** MAIN MENU *** ", 0dh,0ah,0dh,0ah,
           09h,"5: To exit", 0dh, 0ah, 0dh, 0ah,0
 
 invMsg BYTE "Not a valid choice",0dh,0ah,0
-isOne Byte "You have chosen option 1",0dh,0ah,0
-isTwo Byte "You have chosen option 2",0dh,0ah,0
-isThree Byte "You have chosen option 3",0dh,0ah,0
-isFour Byte "You have chosen option 4",0dh,0ah,0
-isFive Byte "You have chosen option 5",0dh,0ah,0
 
 balance DWORD 0
 MAX_ALLOWED DWORD 20
 amount DWORD 0
 correctGuesses DWORD 0
 missedGuesses DWORD 0
-name BYTE 16 DUP(0)
+playerName BYTE 16 DUP(0)
 
 namePrompt BYTE "Please enter your name: ",0
 balanceMsg BYTE "Your available balance is: $",0
@@ -52,6 +47,8 @@ statMissedLbl BYTE "Missed Guesses:   ",0
 statWonLbl BYTE "Money You Won:    $",0
 statLostLbl BYTE "Money You Lost:   $",0
 pressEnterMsg BYTE 0dh,0ah,"Press Enter to return to the main menu...",0
+noCreditsMsg BYTE "You have no credits. Please add credits before playing.",0dh,0ah,0
+guessErrMsg BYTE "Invalid guess. Please enter a number between 1 and 10.",0dh,0ah,0
 
 .code
 main PROC
@@ -61,17 +58,19 @@ main PROC
 
     mov edx, OFFSET namePrompt
     call WriteString
-    mov edx, OFFSET name
+    mov edx, OFFSET playerName
     mov ecx, 15
     call ReadString
 
     call Randomize
 
     menuLoop:
+    call Crlf
     mov edx, OFFSET menu
     call WriteString
 
     call ReadInt
+    call Crlf
     cmp eax, 1
     jz choice1
     cmp eax, 2
@@ -111,6 +110,8 @@ main PROC
         jmp endSwitch
 
     choice3:
+        cmp balance, 0
+        jz noCredits
         sub balance, 1
 
         mov eax, 10
@@ -118,10 +119,20 @@ main PROC
         inc eax
         mov ebx, eax
 
+    guessLoop:
         mov edx, OFFSET guessPrompt
         call WriteString
         call ReadInt
-
+        cmp eax, 1
+        jl guessErr
+        cmp eax, 10
+        jg guessErr
+        jmp guessValid
+    guessErr:
+        mov edx, OFFSET guessErrMsg
+        call WriteString
+        jmp guessLoop
+    guessValid:
         cmp eax, ebx
         jz correctGuess
 
@@ -142,16 +153,39 @@ main PROC
         call WriteString
 
     playAgain:
+        cmp balance, 0
+        jnz playAgainPrompt
+        mov edx, OFFSET noCreditsMsg
+        call WriteString
+        jmp endSwitch
+    playAgainPrompt:
         mov edx, OFFSET playAgainMsg
         call WriteString
+    playAgainRead:
         call ReadChar
+        cmp al, 0dh
+        jz playAgainRead
+        cmp al, 0ah
+        jz playAgainRead
         mov bl, al
-        call ReadChar      ; drain trailing newline
         call Crlf
         cmp bl, 'y'
         jz choice3
         cmp bl, 'Y'
         jz choice3
+        cmp bl, 'n'
+        jz endSwitch
+        cmp bl, 'N'
+        jz endSwitch
+        mov edx, OFFSET invMsg
+        call WriteString
+        mov edx, OFFSET playAgainMsg
+        call WriteString
+        jmp playAgainRead
+
+    noCredits:
+        mov edx, OFFSET noCreditsMsg
+        call WriteString
         jmp endSwitch
 
     choice4:
@@ -160,7 +194,7 @@ main PROC
 
         mov edx, OFFSET statNameLbl
         call WriteString
-        mov edx, OFFSET name
+        mov edx, OFFSET playerName
         call WriteString
         call Crlf
 
